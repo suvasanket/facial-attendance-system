@@ -1,243 +1,167 @@
+import json
 import os
-import pickle
-import cv2
-import face_recognition
-import cvzone
-import firebase_admin
-from firebase_admin import credentials
-from firebase_admin import db
-from firebase_admin import storage
-import numpy as np
-from datetime import datetime
-from test import test
+import tkinter as tk
+import subprocess
+from tkinter import simpledialog, messagebox
 
 with open('antiSpoof.txt', 'r') as file:
     antiSpoof = [int(num) for line in file for num in line.split()]
+
 with open('coolDown.txt', 'r') as file:
     coolDown = [int(num) for line in file for num in line.split()]
 
-antiSpoofing=antiSpoof[0]
-cooldown_time=coolDown[0]
+def button7_cmd():
+    faceadd_proccess=subprocess.Popen(["open","https://studentsattendance-7cd66-default-rtdb.firebaseio.com/"])
+    faceadd_proccess.wait()
 
-def start_process():
-    # Code to start the process goes here
-    print("Process started")
+def button6_cmd():
+    faceadd_proccess=subprocess.Popen(["python", file_path("AddFace_Module.py")])
+    faceadd_proccess.wait()
 
-if __name__ == '__main__':
-    #### Database Authenticator ####
-    cred = credentials.Certificate("serviceAccountKey.json")
-    firebase_admin.initialize_app(
-        cred,
-        {
-            "databaseURL": "https://studentsattendance-7cd66-default-rtdb.firebaseio.com/",
-            "storageBucket": "studentsattendance-7cd66.appspot.com",
-        },
-    )
-    bucket = storage.bucket()
+def button5_cmd():
+    datadd_proccess=subprocess.Popen(["python", file_path("AddData_Module.py")])
+    datadd_proccess.wait()
 
-    #### Video Capture ####
-    cap = cv2.VideoCapture(0)
-    cap.set(3, 640)
-    cap.set(4, 480)
+def button4_cmd():
+    new_window = tk.Toplevel(root)
+    new_window.title("Enter Details")
+    new_window.geometry('330x270+600+300')
 
-    imgBackground = cv2.imread("Resources/background.png")
+    # Labels and Entries for each prompt
+    labels = ["Roll No.", "dept", "last_attendance_time", "name", "sec", "starting_year", "total_attendance", "year"]
+    entries = []
 
-    folderModePath = "Resources/Modes"
-    modePathList = os.listdir(folderModePath)
-    imgModeList = []
-    for path in modePathList:
-        imgModeList.append(cv2.imread(os.path.join(folderModePath, path)))
+    for i, label_text in enumerate(labels):
+        label = tk.Label(new_window, text=label_text)
+        label.grid(row=i, column=0)
+        entry = tk.Entry(new_window)
+        entry.grid(row=i, column=1)
+        entries.append(entry)
 
-    # Load the encoding file
-    print("FaceModule loading...")
-    file = open("EncodeFile.p", "rb")
-    encodeListKnownWithIds = pickle.load(file)
-    file.close()
-    encodeListKnown, studentIds = encodeListKnownWithIds
-    print("FaceModule Loaded")
-
-    modeType = 0
-    counter = 0
-    id = -1
-    imgStudent = []
-
-    #### Main loop ####
-    while True:
-        success, img = cap.read()
-
-        recent_capture = cv2.resize(img, (0, 0), None, 0.25, 0.25)
-        imgS = cv2.cvtColor(recent_capture, cv2.COLOR_BGR2RGB)
-
-
-        faceCurFrame = face_recognition.face_locations(imgS)
-        encodeCurFrame = face_recognition.face_encodings(imgS, faceCurFrame)
-
-        imgBackground[162:162 + 480, 55:55 + 640] = img
-        imgBackground[44:44 + 633, 808:808 + 414] = imgModeList[modeType]
-
-        if faceCurFrame:
-            for encodeFace, faceLoc in zip(encodeCurFrame, faceCurFrame):
-                matches = face_recognition.compare_faces(encodeListKnown, encodeFace)
-                faceDis = face_recognition.face_distance(encodeListKnown, encodeFace)
-                matchIndex = np.argmin(faceDis)
-                if antiSpoofing == 1:
-                    live = test(
-                        image=recent_capture,
-                        model_dir='Silent-Face-Anti-Spoofing/resources/anti_spoof_models',
-                        device_id=0
-                    )
-                    text = "AntiSpoofing Enabled"
-                    cv2.putText(imgBackground, text, (10,700), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (128, 128, 128), 1, cv2.LINE_AA)
-                    if live == 1:
-                        if matches[matchIndex]:
-                            y1, x2, y2, x1 = faceLoc
-                            y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4
-                            bbox = 55 + x1, 162 + y1, x2 - x1, y2 - y1
-                            imgBackground = cvzone.cornerRect(imgBackground, bbox, rt=0)
-                            id = studentIds[matchIndex]
-                            if counter == 0:
-                                cvzone.putTextRect(imgBackground, "Loading", (275, 400))
-                                cv2.imshow("Face Attendance", imgBackground)
-                                cv2.waitKey(1)
-                                counter = 1
-                                modeType = 1
+    # Submit button to save data
+    def submit():
+        data = {}
+        for i, entry in enumerate(entries):
+            if i == 0:
+                key = entry.get()
+            else:
+                # Convert to integer for specific fields
+                if labels[i].lower() in ["starting_year", "total_attendance", "year"]:
+                    try:
+                        # Attempt to convert to integer
+                        value = int(entry.get())
+                    except ValueError:
+                        # Show an error message if conversion fails
+                        messagebox.showerror("Error", f"{labels[i]} must be an integer.")
+                        return  # Exit the function if conversion fails
+                    data[labels[i].lower()] = value
                 else:
-                    text = "AntiSpoofing Disabled"
-                    cv2.putText(imgBackground, text, (10, 700), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (128, 128, 128), 1,
-                                cv2.LINE_AA)
-                    if matches[matchIndex]:
-                        y1, x2, y2, x1 = faceLoc
-                        y1, x2, y2, x1 = y1 * 4, x2 * 4, y2 * 4, x1 * 4
-                        bbox = 55 + x1, 162 + y1, x2 - x1, y2 - y1
-                        imgBackground = cvzone.cornerRect(imgBackground, bbox, rt=0)
-                        id = studentIds[matchIndex]
-                        if counter == 0:
-                            cvzone.putTextRect(imgBackground, "Loading", (275, 400))
-                            cv2.imshow("Face Attendance", imgBackground)
-                            cv2.waitKey(1)
-                            counter = 1
-                            modeType = 1
+                    data[labels[i].lower()] = entry.get()
 
-            if counter != 0:
-                if counter == 1:
-                    # Get the Data
-                    studentInfo = db.reference(f"Students/{id}").get()
-                    # Get the Image from the storage
-                    blob = bucket.get_blob(f"Images/{id}.png")
-                    array = np.frombuffer(blob.download_as_string(), np.uint8)
-                    imgStudent = cv2.imdecode(array, cv2.COLOR_BGRA2BGR)
-                    # Update data of attendance
-                    datetimeObject = datetime.strptime(
-                        studentInfo["last_attendance_time"], "%Y-%m-%d %H:%M:%S"
-                    )
-                    secondsElapsed = (datetime.now() - datetimeObject).total_seconds()
-                    # CoolDown Time (in seconds) the number before the attendance can't update
-                    # Here it is 24hr (86400)
-                    if secondsElapsed > cooldown_time:
-                        ref = db.reference(f"Students/{id}")
-                        studentInfo["total_attendance"] += 1
-                        ref.child("total_attendance").set(studentInfo["total_attendance"])
-                        ref.child("last_attendance_time").set(
-                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        )
-                    else:
-                        modeType = 3
-                        counter = 0
-                        imgBackground[44: 44 + 633, 808: 808 + 414] = imgModeList[
-                            modeType
-                        ]
+        directory = os.path.expanduser("~/AttendanceSystem_asset/")
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        data_json = os.path.join(directory, 'data.json')
 
-                if modeType != 3:
-                    if 10 < counter < 20:
-                        modeType = 2
-                    imgBackground[44: 44 + 633, 808: 808 + 414] = imgModeList[modeType]
+        # Save data to JSON file
+        with open(data_json, 'r+') as file:
+            try:
+                data_dict = json.load(file)
+            except json.JSONDecodeError:
+                data_dict = {}
+            data_dict[key] = data
+            file.seek(0)
+            json.dump(data_dict, file, indent=4)
+            file.truncate()
 
-                    if counter <= 10:
-                        # noinspection PyUnboundLocalVariable
-                        cv2.putText(
-                            imgBackground,
-                            str(studentInfo["total_attendance"]),
-                            (861, 125),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1,
-                            (255, 255, 255),
-                            1,
-                        )
-                        cv2.putText(
-                            imgBackground,
-                            str(studentInfo["dept"]),
-                            (1006, 550),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5,
-                            (255, 255, 255),
-                            1,
-                        )
-                        cv2.putText(
-                            imgBackground,
-                            str(id),
-                            (1006, 493),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.5,
-                            (255, 255, 255),
-                            1,
-                        )
-                        cv2.putText(
-                            imgBackground,
-                            str(studentInfo["sec"]),
-                            (910, 625),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6,
-                            (255, 255, 255),
-                            1,
-                        )
-                        cv2.putText(
-                            imgBackground,
-                            str(studentInfo["year"]),
-                            (1025, 625),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6,
-                            (255, 255, 255),
-                            1,
-                        )
-                        cv2.putText(
-                            imgBackground,
-                            str(studentInfo["starting_year"]),
-                            (1125, 625),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            0.6,
-                            (255, 255, 255),
-                            1,
-                        )
+        messagebox.showinfo("Success", "Data saved successfully.")
+        new_window.destroy()
 
-                        (w, h), _ = cv2.getTextSize(
-                            studentInfo["name"], cv2.FONT_HERSHEY_SIMPLEX, 1, 1
-                        )
-                        offset = (414 - w) // 2
-                        cv2.putText(
-                            imgBackground,
-                            str(studentInfo["name"]),
-                            (808 + offset, 445),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1,
-                            (255, 255, 255),
-                            1,
-                        )
+    submit_button = tk.Button(new_window, text="Submit", command=submit)
+    submit_button.grid(row=len(labels), column=0, columnspan=2)
 
-                        imgBackground[175: 175 + 216, 909: 909 + 216] = imgStudent
+def button3_cmd():
+    value = simpledialog.askinteger("Time Lag", "Enter a time in Seconds:",parent=root)
+    if value is not None:
+        coolDown_text1 = f"CoolDown Time: {value}s"
+        button3.config(text=coolDown_text1, command=button3_cmd)
+        with open('coolDown.txt', 'w') as f:
+            f.write(str(value))
+        with open('coolDown.txt', 'r') as file:
+            coolDown1 = []
+            for line in file:
+                for num in line.split():
+                    coolDown1.append(int(num))
 
-                    counter += 1
+def button2_cmd():
+    with open('antiSpoof.txt', 'r') as file:
+        num = [int(num) for line in file for num in line.split()]
+    print(num)
+    if num==[1]:
+        button2.config(text="AntiSpoofing: Disabled", command=button2_cmd)
+        with open('antiSpoof.txt', 'w') as f:
+            f.write("0")
+    else:
+        button2.config(text="AntiSpoofing: Enabled", command=button2_cmd)
+        with open('antiSpoof.txt', 'w') as f:
+            f.write("1")
 
-                    if counter >= 20:
-                        counter = 0
-                        modeType = 0
-                        studentInfo = []
-                        imgStudent = []
-                        imgBackground[44: 44 + 633, 808: 808 + 414] = imgModeList[
-                            modeType
-                        ]
-        else:
-            modeType = 0
-            counter = 0
-        # cv2.imshow("Webcam", img)
-        cv2.imshow("Face Attendance", imgBackground)
-        cv2.waitKey(1)
+def file_path(file_name):
+    file_path = os.path.join('/Users/suvasanketrout/codes/projects/python/FaceReconationAttendance', file_name)
+    return file_path
+
+def button1_cmd():
+    global process, is_running
+    if is_running:
+        if process and process.poll() is None:
+            process.kill()
+        button1.config(text="Start Attendance Recording", command=button1_cmd)
+        is_running = False
+    else:
+        process = subprocess.Popen(["python", file_path("attendance_window.py")])
+        button1.config(text="Stop Attendance Recording", command=button1_cmd)
+        is_running = True
+
+root = tk.Tk()
+root.title("Attendance System Console")
+root.geometry('400x400+1200+300')
+
+
+# Attendance
+button1 = tk.Button(root, text="Start Attendance Recording", command=button1_cmd)
+button1.pack(side='top', padx=10, pady=40,fill='x')
+
+# AntiSpoofing
+if antiSpoof==[1]:
+    button2 = tk.Button(root, text="AntiSpoofing: Enabled", command=button2_cmd)
+    button2.pack(side='top', padx=10, pady=0,fill='x')
+if antiSpoof==[0]:
+    button2 = tk.Button(root, text="AntiSpoofing: Disabled", command=button2_cmd)
+    button2.pack(side='top', padx=10, pady=0,fill='x')
+
+
+# Cool Down
+coolDown_text="Time Lag: "+str(coolDown[0])+"s"
+button3 = tk.Button(root, text=coolDown_text, command=button3_cmd)
+button3.pack(side='top', padx=10, pady=0,fill='x')
+
+# Data.json editor
+button4 = tk.Button(root, text="data.json editor", command=button4_cmd)
+button4.pack(side='top', padx=10, pady=0, fill='x')
+
+# Add Data
+button5 = tk.Button(root, text="Add Data", command=button5_cmd)
+button5.pack(side='top', padx=10, pady=0, fill='x')
+
+# Add Face
+button6 = tk.Button(root, text="Add Face", command=button6_cmd)
+button6.pack(side='top', padx=10, pady=0, fill='x')
+
+# open db
+button6 = tk.Button(root, text="Open Database", command=button7_cmd)
+button6.pack(side='top', padx=10, pady=0, fill='x')
+
+process = None
+is_running = False
+
+root.mainloop()

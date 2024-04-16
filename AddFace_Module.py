@@ -5,6 +5,8 @@ import os
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import storage
+import tkinter as tk
+from tkinter import messagebox
 
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred,{
@@ -22,34 +24,48 @@ folderPath = os.path.join(home_dir, faces_path)
 pathList = os.listdir(folderPath)
 imgList = []
 studentIds = []
-for path in pathList:
-    imgList.append(cv2.imread(os.path.join(folderPath, path)))
-    studentIds.append(os.path.splitext(path)[0])
+try:
+    try:
+        for path in pathList:
+            imgList.append(cv2.imread(os.path.join(folderPath, path)))
+            studentIds.append(os.path.splitext(path)[0])
 
-    uploadTo = f'Images/{path}'
-    uploadFrom = f'{folderPath}/{path}'
-    bucket = storage.bucket()
-    blob = bucket.blob(uploadTo)
-    blob.upload_from_filename(uploadFrom)
+            uploadTo = f'Images/{path}'
+            uploadFrom = f'{folderPath}/{path}'
+            bucket = storage.bucket()
+            blob = bucket.blob(uploadTo)
+            blob.upload_from_filename(uploadFrom)
 
-print("Image Uploaded to Database")
+        def findEncodings(imagesList):
+            encodeList = []
+            for img in imagesList:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                encode = face_recognition.face_encodings(img)[0]
+                encodeList.append(encode)
 
-def findEncodings(imagesList):
-    encodeList = []
-    for img in imagesList:
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        encode = face_recognition.face_encodings(img)[0]
-        encodeList.append(encode)
+            return encodeList
 
-    return encodeList
+    except:
+        messagebox.showerror("Connection Issue","unable to uploadTo database")
+        raise Exception("error during uploading to database")
 
+    try:
+        encodeListKnown = findEncodings(imgList)
+        encodeListKnownWithIds = [encodeListKnown, studentIds]
 
-print("Encoding...")
-encodeListKnown = findEncodings(imgList)
-encodeListKnownWithIds = [encodeListKnown, studentIds]
-print("Encoding Complete")
+        file = open("EncodeFile.p", 'wb')
+        pickle.dump(encodeListKnownWithIds, file)
 
-file = open("EncodeFile.p", 'wb')
-pickle.dump(encodeListKnownWithIds, file)
-file.close()
-print("File Saved")
+    except:
+        messagebox.showerror("Error Occured", "Unable to create encoding")
+        raise Exception("error during generating encoding")
+
+    finally:
+        file.close()
+
+except Exception as e:
+    print(e)
+
+else:
+    messagebox.showinfo("FaceAdded", "Faces Added Successfully")
+
